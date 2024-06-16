@@ -1,10 +1,6 @@
 ##
 Consume events from Kafka and send notifications to users. 
 
-## Description
-
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
 ## Installation
 
 ```bash
