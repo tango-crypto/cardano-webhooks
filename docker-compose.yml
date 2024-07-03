@@ -1,0 +1,10 @@
+version: '3'
+services:
+  cardano-api:
+    build:
+      context: .
+      target: build
+    command: npm run start:dev
+    env_file: .env
+    volumes:
+      - .:/opt/node_app/app/
