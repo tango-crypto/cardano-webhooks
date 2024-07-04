@@ -4,6 +4,7 @@ import { Block } from '../models/block.model';
 import { Utils } from '../utils';
 import { ClientKafka, KafkaContext } from '@nestjs/microservices';
 import { Delegation } from 'src/models/delegation.model';
+import { Epoch } from 'src/models/epoch.model';
 
 @Injectable()
 export class StreamEventService {
@@ -13,8 +14,18 @@ export class StreamEventService {
     private readonly webhookService: WebhookService) {
   }
 
-  onNewEpoch(value: any) {
-    // console.log('New Epoch:', value);
+  async onNewEpoch(epoch: Epoch) {
+    let nextState = undefined;
+    do {
+      const { items, state } = await this.webhookService.getWebhooks('WBH_EPOCH', epoch.block.network, nextState);
+      for (const webhook of items) {
+        if (webhook.rules.length == 0 || Utils.matchRules(webhook.rules, epoch)) {
+          const confirmations = Number(webhook.confirmations) || 0;
+          await Utils.processWebhook(this.kafkaClient, webhook, 'epoch', epoch, confirmations);
+        }
+      }
+      nextState = state;
+    } while (nextState);
 
   }
 

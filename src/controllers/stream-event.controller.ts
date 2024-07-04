@@ -4,6 +4,7 @@ import { ClientKafka, Ctx, EventPattern, KafkaContext, Payload } from '@nestjs/m
 import { Block } from 'src/models/block.model';
 import { Utils } from 'src/utils';
 import { Delegation } from 'src/models/delegation.model';
+import { Epoch } from 'src/models/epoch.model';
 
 @Controller()
 export class StreamEventController {
@@ -12,8 +13,10 @@ export class StreamEventController {
   ) {}
 
   @EventPattern('new_epoch')
-  async onNewEpoch(data: any, @Ctx() context: KafkaContext) {
-    await this.streamEventService.onNewEpoch(data);
+  async onNewEpoch(@Payload() epoch: Epoch, @Ctx() context: KafkaContext) {
+    console.log(`Process new stream event (epoch) ${'-'.repeat(50)}`);
+    console.log('EPOCH', JSON.stringify(epoch));
+    await this.streamEventService.onNewEpoch(epoch);
     await Utils.commitOffsets(context);
   }
 
