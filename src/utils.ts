@@ -111,7 +111,7 @@ export const Utils = {
         });
     },
 
-    commitOffsets(_kafkaClient: ClientKafka, context: KafkaContext): Promise<void> {
+    commitOffsets(context: KafkaContext): Promise<void> {
         const { offset } = context.getMessage();
         const partition = context.getPartition();
         const topic = context.getTopic();

@@ -3,6 +3,7 @@ import { WebhookService } from './webhooks.service';
 import { Block } from '../models/block.model';
 import { Utils } from '../utils';
 import { ClientKafka, KafkaContext } from '@nestjs/microservices';
+import { Delegation } from 'src/models/delegation.model';
 
 @Injectable()
 export class StreamEventService {
@@ -17,7 +18,7 @@ export class StreamEventService {
 
   }
 
-  async onNewBlock(block: Block, context: KafkaContext) {
+  async onNewBlock(block: Block) {
     let nextState = undefined;
     do {
       const { items, state } = await this.webhookService.getWebhooks('WBH_BLOCK', block.network, nextState);
@@ -34,8 +35,18 @@ export class StreamEventService {
     } while (nextState);
   }
 
-  onNewDelegation(value: any) {
-    // console.log('New Delegation:', value);
+  async onNewDelegation(delegation: Delegation) {
+    let nextState = undefined;
+    do {
+      const { items, state } = await this.webhookService.getWebhooks('WBH_DELEGATION', delegation.network, nextState);
+      for (const webhook of items) {
+        if (webhook.rules.length == 0 || Utils.matchRules(webhook.rules, delegation)) {
+          const confirmations = Number(webhook.confirmations) || 0;
+          await Utils.processWebhook(this.kafkaClient, webhook, 'delegation', delegation, confirmations);
+        }
+      }
+      nextState = state;
+    } while (nextState);
   }
 
   onNewPayment(value: any) {

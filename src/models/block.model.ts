@@ -1,4 +1,4 @@
-export class Block {
+export interface Block {
     network: string;
     hash: string;
     epoch_no: number;
