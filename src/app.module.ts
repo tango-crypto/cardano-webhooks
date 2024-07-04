@@ -26,6 +26,9 @@ import { MeteringService } from './services/metering.service';
             consumer: {
               groupId: configService.get<string>('KAFKA_CONSUMER_GROUP'),
             },
+            run: {
+              autoCommit: false
+            }
           },
         }),
         inject: [ConfigService],

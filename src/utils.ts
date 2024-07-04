@@ -1,7 +1,8 @@
 import * as crypto from 'crypto';
 import * as cbor from 'borc';
 import { WebhookMessage } from './models/webhook-message.model';
-import { ClientKafka } from '@nestjs/microservices';
+import { ClientKafka, KafkaContext } from '@nestjs/microservices';
+import { Producer } from 'kafkajs';
 
 const apiVersion = process.env.API_VERSION || 'v1';
 
@@ -98,11 +99,24 @@ export const Utils = {
             confirmations,
         };
 
-		Utils.publishEvent(messageBroker, `wbh_event`, message);
+		Utils.publishEvent(messageBroker, `wbh_event`, `${accountId}-${webhook.network}`, message);
 	},
 
-    publishEvent(kafkaClient: ClientKafka, topic: string, message: any) {
-        kafkaClient.emit(topic, message);
+    publishEvent(kafkaClient: ClientKafka, topic: string, key: string, message: any, headers: {[key: string]: string | Buffer} = {}) {
+		console.log('Publish with key:', key);
+        kafkaClient.emit(topic, {
+            headers,
+            key,
+            value: message
+        });
+    },
+
+    commitOffsets(_kafkaClient: ClientKafka, context: KafkaContext): Promise<void> {
+        const { offset } = context.getMessage();
+        const partition = context.getPartition();
+        const topic = context.getTopic();
+		const nextOffset = (parseInt(offset, 10) + 1).toString();
+        return context.getConsumer().commitOffsets([{ topic, partition, offset: nextOffset }]);
     },
 
 	buildSignature: function (payload, authToken) {

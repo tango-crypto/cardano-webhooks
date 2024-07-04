@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { WebhookService } from './webhooks.service';
 import { Block } from '../models/block.model';
 import { Utils } from '../utils';
-import { ClientKafka } from '@nestjs/microservices';
+import { ClientKafka, KafkaContext } from '@nestjs/microservices';
 
 @Injectable()
 export class StreamEventService {
@@ -17,10 +17,8 @@ export class StreamEventService {
 
   }
 
-  async onNewBlock(block: Block) {
+  async onNewBlock(block: Block, context: KafkaContext) {
     let nextState = undefined;
-    console.log('Process new event ------------------------------------');
-    console.log('BLOCK', JSON.stringify(block));
     do {
       const { items, state } = await this.webhookService.getWebhooks('WBH_BLOCK', block.network, nextState);
       for (const webhook of items) {

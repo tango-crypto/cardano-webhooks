@@ -5,7 +5,7 @@ import { WebhookMessage } from 'src/models/webhook-message.model';
 import { ConfigService } from '@nestjs/config';
 import { PostgresClient } from '@tangocrypto/tango-ledger';
 import axios from 'axios';
-import { ClientKafka } from '@nestjs/microservices';
+import { ClientKafka, KafkaRetriableException } from '@nestjs/microservices';
 import { MeteringService } from './metering.service';
 
 @Injectable()
@@ -96,25 +96,15 @@ export class NotifyService {
                 const webhookPayload = { ...data, network };
                 const signature = Utils.buildSignature(webhookPayload, authToken);
                 await axios.post(callbackUrl, webhookPayload, { timeout: this.timeout, headers: { [this.headerSignature]: signature }, maxContentLength: Infinity });
-
                 // notify webhooks-metering
                 await this.checkWebhookQuota(accountId, webhookId, network, incr);
             } catch (err) {
-                let errorMessage = '';
-                if (err.response) {
-                    console.error('Axios Error:', err.toJSON());
-                    errorMessage = `The remote server returned an error: (${err.response.status}) ${err.response.statusText}`;
-                } else {
-                    console.error('Unknown Error:', err);
-                    errorMessage = `The remote server returned an error: (500) ${err.message}`;
-                }
-
                 // notify webhooks-metering
                 const quota = await this.checkWebhookQuota(accountId, webhookId, network, incr, incr);
                 const webhooks_requests_failed = Number(quota.webhooks_requests_failed);
                 if (webhooks_requests_failed < quota.webhooks_requests_failed_limit) {
-                    // TODO: put it back in stream events (e.g kafka)
-                    // batchItemFailures.push({ itemIdentifier: record.messageId });
+                    // don't commit offset this message
+                    throw new KafkaRetriableException(`user:${accountId} callbackUrl: ${callbackUrl} timeout`);
                 } else if (webhooks_requests_failed >= quota.webhooks_requests_failed_limit && webhooks_requests_failed - quota.webhooks_requests_failed_limit < incr) {
                     // deactive webhook (remove from notification's listners) 
                     const eventKey = Utils.getRandomUUID();
@@ -123,7 +113,7 @@ export class NotifyService {
                         network: network,
                         data: { accountId, webhookId, webhookName, requests: quota.webhooks_requests_failed_limit, timeout: this.timeout },
                     };
-                    Utils.publishEvent(this.kafkaClient, 'wbh_unreachable', message);
+                    Utils.publishEvent(this.kafkaClient, 'wbh_unreachable', `${accountId}-${network}`, message);
                 }
             }
         } else { // TODO: handle confirmations > 0
@@ -151,7 +141,7 @@ export class NotifyService {
                 network: network,
                 data: { accountId, quota: this.requestsWarning * 100 },
             };
-            Utils.publishEvent(this.kafkaClient, 'wbh_warning', message);
+            Utils.publishEvent(this.kafkaClient, 'wbh_warning', `${accountId}-${network}`, message);
         }
         // check deactivate account's webhooks
         if (quota.tier == 'free' && (webhooks_counter >= webhooks_requests && webhooks_counter - webhooks_requests < incr)) {
@@ -161,7 +151,7 @@ export class NotifyService {
                 network: network,
                 data: { accountId },
             };
-            Utils.publishEvent(this.kafkaClient, 'wbh_maxedout', message);
+            Utils.publishEvent(this.kafkaClient, 'wbh_maxedout', `${accountId}-${network}`, message);
         }
         return quota;
     }

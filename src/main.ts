@@ -9,21 +9,27 @@ async function bootstrap() {
 
   const kafkaHost = configService.get<string>('KAFKA_HOST');
   const kafkaPort = configService.get<string>('KAFKA_PORT');
+  const clientId = configService.get<string>('KAFKA_CLIENT');
   const groupId = configService.get<string>('KAFKA_CONSUMER_GROUP');
 
   const microserviceOptions: MicroserviceOptions = {
     transport: Transport.KAFKA,
     options: {
       client: {
+        clientId: clientId,
         brokers: [`${kafkaHost}:${kafkaPort}`]
       },
       consumer: {
         groupId: groupId,
       },
+      run: {
+        autoCommit: false
+      }
     },
   };
 
   app.connectMicroservice(microserviceOptions);
   await app.startAllMicroservices();
 }
+
 bootstrap();

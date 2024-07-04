@@ -1,34 +1,46 @@
-import { Controller } from '@nestjs/common';
+import { Controller, Inject } from '@nestjs/common';
 import { StreamEventService } from '../services/stream-event.service';
-import { EventPattern } from '@nestjs/microservices';
+import { ClientKafka, Ctx, EventPattern, KafkaContext, Payload } from '@nestjs/microservices';
+import { Block } from 'src/models/block.model';
+import { Utils } from 'src/utils';
 
 @Controller()
 export class StreamEventController {
-  constructor(private readonly streamEventService: StreamEventService) {}
+  constructor(
+    // @Inject("WEBHOOK_NOTIFY_SERVICE") private readonly kafkaClient: ClientKafka, 
+    private readonly streamEventService: StreamEventService
+  ) {}
 
   @EventPattern('new_epoch')
-  onNewEpoch(data: any) {
-    this.streamEventService.onNewEpoch(data.value);
+  async onNewEpoch(data: any, @Ctx() context: KafkaContext) {
+    await this.streamEventService.onNewEpoch(data);
+    await Utils.commitOffsets(null, context);
   }
 
   @EventPattern('new_block')
-  onNewBlock(data: any) {
-    this.streamEventService.onNewBlock(data.value);
+  async onNewBlock(@Payload() block: Block, @Ctx() context: KafkaContext) {
+    console.log(`Process new stream event (block) ${'-'.repeat(50)}`);
+    console.log('BLOCK', JSON.stringify(block));
+    await this.streamEventService.onNewBlock(block, context);
+    await Utils.commitOffsets(null, context);
   }
 
   @EventPattern('new_delegation')
-  onNewDelegation(data: any) {
-    this.streamEventService.onNewDelegation(data.value);
+  async onNewDelegation(data: any, @Ctx() context: KafkaContext) {
+    await this.streamEventService.onNewDelegation(data);
+    await Utils.commitOffsets(null, context);
   }
 
   @EventPattern('new_payment')
-  onNewPayment(data: any) {
-    this.streamEventService.onNewPayment(data.value);
+  async onNewPayment(data: any, @Ctx() context: KafkaContext) {
+    await this.streamEventService.onNewPayment(data);
+    await Utils.commitOffsets(null, context);
   }
   
   @EventPattern('new_transaction')
-  onNewTransaction(data: any) {
-    this.streamEventService.onNewTransaction(data.value);
+  async onNewTransaction(data: any, @Ctx() context: KafkaContext) {
+    await this.streamEventService.onNewTransaction(data);
+    await Utils.commitOffsets(null, context);
   }
 
 }
