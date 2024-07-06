@@ -5,7 +5,7 @@ export type WebhookKey = 'WBH_EPOCH' | 'WBH_BLOCK' | 'WBH_DELEGATION' | 'WBH_PAY
 export class Webhook {
     user_id: string;
     webhook_id: string; 
-    webhook_key: WebhookKey; 
+    webhook_key: WebhookKey | string; 
     name: string;
     network: string;
     description: string;

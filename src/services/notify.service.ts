@@ -63,21 +63,16 @@ export class NotifyService {
         const { webhookId, accountId, webhookName, authToken, callbackUrl, payload, type, network, confirmations, originalConfirmations } = message;
         const webhook = await this.webhookService.getWebhook(accountId, webhookId);
         if (!webhook || !webhook.active) return;
-        const data = Utils.cborDecode(Buffer.from(payload, 'base64'));
         if (confirmations == 0) {
+            const data = Utils.cborDecode(Buffer.from(payload, 'base64'));
             const incr = originalConfirmations ? originalConfirmations * this.confirmationFactor : 1;
             try {
                 let content = data.data;
                 const ledger = network == 'mainnet' ? this.dbClient : this.dbClientTestnet;
-                if (type == 'payment') {
-                    const utxos = await ledger.getTransactionUtxos(content.transaction.hash);
-                    if (originalConfirmations > 0) {
-                        const { block_no, slot_leader } = content.transaction.block;
-                        const block = await this.fecthOnChainBlock(ledger, block_no, slot_leader);
-                        content.transaction.block = block;
-                    }
-                    content.from = utxos.inputs;
-                    content.to = utxos.outputs;
+                if (type == 'payment' && originalConfirmations > 0) {
+                    const { block_no, slot_leader } = content.transaction.block;
+                    const block = await this.fecthOnChainBlock(ledger, block_no, slot_leader);
+                    content.transaction.block = block;
                 } else if (type == 'block' && originalConfirmations > 0) { // posible rollbacks so we need to update block's data
                     const { block_no, slot_leader } = content;
                     const block = await this.fecthOnChainBlock(ledger, block_no, slot_leader);

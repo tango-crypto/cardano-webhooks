@@ -5,6 +5,7 @@ import { Block } from 'src/models/block.model';
 import { Utils } from 'src/utils';
 import { Delegation } from 'src/models/delegation.model';
 import { Epoch } from 'src/models/epoch.model';
+import { Payment } from 'src/models/payment.model';
 
 @Controller()
 export class StreamEventController {
@@ -37,8 +38,10 @@ export class StreamEventController {
   }
 
   @EventPattern('new_payment')
-  async onNewPayment(data: any, @Ctx() context: KafkaContext) {
-    await this.streamEventService.onNewPayment(data);
+  async onNewPayment(@Payload() payment: Payment, @Ctx() context: KafkaContext) {
+    console.log(`Process new stream event (payment) ${'-'.repeat(50)}`);
+    console.log('PAYMENT', JSON.stringify(payment));
+    await this.streamEventService.onNewPayment(payment);
     await Utils.commitOffsets(context);
   }
   

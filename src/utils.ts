@@ -13,10 +13,12 @@ const CIP68_STANDARD = {
 }
 
 export const Utils = {
-	groupBy: function (records, property) {
+	groupBy: function<T> (records: T[], property: string): {[key: string]: T[]} {
 		return records.reduce((dict, item) => {
 			const value = item[property];
-			dict[value] = (dict[value] || []).concat(item);
+			if (value) {
+				dict[value] = (dict[value] || []).concat(item);
+			}
 			return dict;
 		}, {})
 	},

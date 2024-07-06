@@ -29,7 +29,7 @@ export class WebhookService {
         return result.first();
     }
 
-    async getWebhooks(webhook_key: WebhookKey, network: string, state?: string, size: number = 100): Promise<{items: Webhook[], state: string}> {
+    async getWebhooks(webhook_key: WebhookKey | string, network: string, state?: string, size: number = 100): Promise<{items: Webhook[], state: string}> {
         const result = await this.scyllaProvider.execute<Webhook>(this.webhooksQuery, { webhook_key, network }, { prepare: true, fetchSize: size, pageState: state });
         return result;
     }
