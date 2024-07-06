@@ -2,7 +2,7 @@ import * as crypto from 'crypto';
 import * as cbor from 'borc';
 import { WebhookMessage } from './models/webhook-message.model';
 import { ClientKafka, KafkaContext } from '@nestjs/microservices';
-import { Producer } from 'kafkajs';
+import { Asset } from '@tangocrypto/tango-ledger';
 
 const apiVersion = process.env.API_VERSION || 'v1';
 
@@ -132,7 +132,7 @@ export const Utils = {
 		return reduceAssetsQuantity(inputs, balance, -1);
 	},
 
-	assetBalanceWithMint: function (mint, outputs) {
+	assetBalanceWithMint: function (mint: any, outputs: Asset[]): {[key: string]: Asset} {
 		const balance = reduceAssetsQuantity(outputs);
 		return Object.entries<any>(mint).reduce((acc, [fingerprint, asset]) => {
 			if (!acc[fingerprint]) { // burn input asset completly (no UTxO with the remaining asset)

@@ -6,7 +6,7 @@ import { ClientKafka, KafkaContext } from '@nestjs/microservices';
 import { Delegation } from 'src/models/delegation.model';
 import { Epoch } from 'src/models/epoch.model';
 import { Payment, Asset, Transaction } from 'src/models/payment.model';
-import { PostgresClient } from '@tangocrypto/tango-ledger';
+import { Metadata, PostgresClient, Utxo } from '@tangocrypto/tango-ledger';
 import { ConfigService } from '@nestjs/config';
 
 @Injectable()
@@ -129,6 +129,9 @@ export class StreamEventService {
         nextState = state;
       } while (nextState);
     }
+
+    // process possible assets
+    await this.onAsset(payment, ledger);
   }
 
   async onNewTransaction(tx: Transaction) {
@@ -143,6 +146,72 @@ export class StreamEventService {
       }
       nextState = state;
     } while (nextState);
+  }
+
+  async onAsset(payment: Payment, ledger: PostgresClient) {
+    const { transaction, inputs, outputs } = payment;
+    const inputAssets = inputs.flatMap(i => i.assets || []);
+    const outputAssets = outputs.flatMap(out => (out.assets || []).map(asset => {
+      const result = asset;
+      if (out.datum?.value && asset.asset_name_label == 100) { // cip68 ref token with datum metadata
+        result.metadata = [Utils.convertDatumToMetadata(out.datum.value, asset.policy_id, asset.asset_name, asset.asset_name_label)];
+      }
+      return result;
+    }) || []);
+    if (inputAssets.length > 0 || outputAssets.length > 0) {
+      const network = transaction.block.network;
+      const metadata: Metadata[] = transaction.metadata || [];
+      const { '721': mintNfts, '20': mintFts } = metadata.reduce((acc: { '721': string[], '20': string[] }, m: Metadata) => {
+        if (acc[m.label]) {
+          const policy_id = Object.keys(m.json || {}).find(k => k.length == 56);
+          if (policy_id) {
+            acc[m.label].push(...Object.keys(m.json[policy_id]).map(asset_name => `${policy_id}.${asset_name}`));
+          }
+        }
+        return acc;
+      }, { '721': [], '20': [] });
+      const mint = transaction.mint || {};
+      const assets = await Promise.all(Object.values(Utils.assetBalanceWithMint(mint, outputAssets)).map(async a => {
+        let asset = { ...a, nft_minted: 0, ft_minted: 0 };
+        const mintedOrBurnt = mint[a.fingerprint]?.quantity || 0;
+        if (mintedOrBurnt != 0) { // there was mint/burn activity
+          let tokenKind = await this.getTokenMintedTypeOf(ledger, mintNfts, mintFts, a)
+          asset[tokenKind] = mintedOrBurnt;
+        }
+        return asset;
+      }));
+      let nextState = undefined;
+      do {
+        let filterAssets = assets;
+        const { items, state } = await this.webhookService.getWebhooks('WBH_ASSET', network, nextState);
+        for (const webhook of items) {
+          if (webhook.rules.length == 0 || (filterAssets = Utils.filterRules(webhook.rules, assets)).length > 0) {
+            const confirmations = Number(webhook.confirmations) || 0;
+            await Utils.processWebhook(this.kafkaClient, webhook, 'asset', { transaction, assets: filterAssets }, confirmations);
+          }
+        }
+        nextState = state;
+      } while (nextState);
+    }
+  }
+
+  async getTokenMintedTypeOf(ledger: PostgresClient, mintNfts: string[], mintFts: string[], asset: Asset): Promise<string> {
+    const key = `${asset.policy_id}.${asset.asset_name}`;
+    let typeOf = mintNfts.includes(key) ? 'nft_minted' : mintFts.includes(key) ? 'ft_minted' : null;
+    if (!typeOf) {
+      // check cip68 token
+      if (asset.asset_name_label) {
+        typeOf = asset.asset_name_label == 222 ? 'nft_minted' : 'ft_minted';
+      } else { // try getting last updated metadata
+        const metadata = (await this.getTokenMetadata(ledger, asset.fingerprint)).filter(m => m.label == 721);
+        typeOf = metadata.length > 0 ? 'nft_minted' : 'ft_minted';
+      }
+    }
+    return typeOf;
+  }
+
+  async getTokenMetadata(ledger: PostgresClient, fingerprint: string): Promise<Metadata[]> {
+    return await ledger.getAssetMetadata(fingerprint);
   }
 
 }

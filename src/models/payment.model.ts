@@ -41,4 +41,10 @@ export interface Asset {
     quantity: number;
     fingerprint?: string;
     owner?: string;
+    metadata?: Metadata[];
+}
+
+export interface Metadata {
+    label: string | number;
+    json: any;
 }
