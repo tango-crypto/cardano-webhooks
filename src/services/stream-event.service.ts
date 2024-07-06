@@ -5,7 +5,7 @@ import { Utils } from '../utils';
 import { ClientKafka, KafkaContext } from '@nestjs/microservices';
 import { Delegation } from 'src/models/delegation.model';
 import { Epoch } from 'src/models/epoch.model';
-import { Payment, Asset } from 'src/models/payment.model';
+import { Payment, Asset, Transaction } from 'src/models/payment.model';
 import { PostgresClient } from '@tangocrypto/tango-ledger';
 import { ConfigService } from '@nestjs/config';
 
@@ -131,8 +131,18 @@ export class StreamEventService {
     }
   }
 
-  onNewTransaction(value: any) {
-    // console.log('New Transaction:', value);
+  async onNewTransaction(tx: Transaction) {
+    let nextState = undefined;
+    do {
+      const { items, state } = await this.webhookService.getWebhooks('WBH_TRANSACTION', tx.block.network, nextState);
+      for (const webhook of items) {
+        if (webhook.rules.length == 0 || Utils.matchRules(webhook.rules, tx)) {
+          const confirmations = Number(webhook.confirmations) || 0;
+          await Utils.processWebhook(this.kafkaClient, webhook, 'transaction', tx, confirmations);
+        }
+      }
+      nextState = state;
+    } while (nextState);
   }
 
 }
