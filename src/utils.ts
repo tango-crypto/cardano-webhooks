@@ -53,7 +53,7 @@ export const Utils = {
 				value = value[field];
 				if (value == undefined) break;
 			}
-			return value != undefined && operators[r.operator](value, r.value);
+			return value != undefined && operators[r.operator](value, r.value, r.operator_type);
 		});
 	},
 
@@ -184,11 +184,28 @@ const reduceAssetsQuantity = function (assets, dict = {}, sign = 1) {
 }
 
 const operators = {
-	'eq': (a, b) => a == b,
-	'=': (a, b) => a == b,
-	'!=': (a, b) => a != b,
-	'>=': (a, b, number = true) => number ? Number(a) >= Number(b) : a >= b,
-	'<=': (a, b, number = true) => number ? Number(a) <= Number(b) : a <= b,
-	'>': (a, b, number = true) => number ? Number(a) > Number(b) : a > b,
-	'<': (a, b, number = true) => number ? Number(a) < Number(b) : a < b,
+	'eq': (a, b, type: operatorType) => operatorTypeToValue[type](a) == operatorTypeToValue[type](b),
+	'=':  (a, b, type: operatorType) => operatorTypeToValue[type](a) == operatorTypeToValue[type](b),
+	'!=': (a, b, type: operatorType) => operatorTypeToValue[type](a) != operatorTypeToValue[type](b),
+	'>=': (a, b, type: operatorType) => operatorTypeToValue[type](a) >= operatorTypeToValue[type](b),
+	'<=': (a, b, type: operatorType) => operatorTypeToValue[type](a) <= operatorTypeToValue[type](b),
+	'>':  (a, b, type: operatorType) => operatorTypeToValue[type](a) > operatorTypeToValue[type](b),
+	'<':  (a, b, type: operatorType) => operatorTypeToValue[type](a) < operatorTypeToValue[type](b),
 }
+
+export type operatorType = 'string' | 'number' | 'boolean';
+
+const stringToBoolean = function (value: string): boolean {
+	const lowerCaseValue = value.toLowerCase().trim();
+	if (lowerCaseValue === "true") {
+		return true;
+	} else {
+		return false;
+	}
+}
+const operatorTypeToValue: { [key: string]: (a: string) => string | number | boolean } = {
+	'boolean': stringToBoolean,
+	'number': (a) => Number(a),
+	'string': (a) => a
+}
+

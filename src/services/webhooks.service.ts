@@ -26,11 +26,20 @@ export class WebhookService {
 
     async getWebhook(userId: string, webhookId: string): Promise<Webhook> {
         const result = await this.webhookMapper.find({ user_id: userId, webhook_id: webhookId });
-        return result.first();
+        const webhook = result.first();
+        if (webhook && !webhook.rules) {
+            webhook.rules = [];
+        }
+        return webhook;
     }
 
     async getWebhooks(webhook_key: WebhookKey | string, network: string, state?: string, size: number = 100): Promise<{items: Webhook[], state: string}> {
         const result = await this.scyllaProvider.execute<Webhook>(this.webhooksQuery, { webhook_key, network }, { prepare: true, fetchSize: size, pageState: state });
-        return result;
+        return { items: result.items.map(w => {
+            if (!w.rules) {
+                w.rules = [];
+            }
+            return w;
+        }), state: result.state };
     }
 }
