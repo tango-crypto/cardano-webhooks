@@ -182,12 +182,16 @@ export class StreamEventService {
       }));
       let nextState = undefined;
       do {
-        let filterAssets = assets;
         const { items, state } = await this.webhookService.getWebhooks('WBH_ASSET', network, nextState);
         for (const webhook of items) {
-          if (webhook.rules.length == 0 || (filterAssets = Utils.filterRules(webhook.rules, assets)).length > 0) {
-            const confirmations = Number(webhook.confirmations) || 0;
-            await Utils.processWebhook(this.kafkaClient, webhook, 'asset', { transaction, assets: filterAssets }, confirmations);
+          const confirmations = Number(webhook.confirmations) || 0;
+          if (webhook.rules.length == 0) {
+            await Utils.processWebhook(this.kafkaClient, webhook, 'asset', { transaction, assets }, confirmations);
+          } else {
+            let filterAssets = Utils.filterRules(webhook.rules, assets)
+            if (filterAssets.length > 0) {
+              await Utils.processWebhook(this.kafkaClient, webhook, 'asset', { transaction, assets: filterAssets }, confirmations);
+            }
           }
         }
         nextState = state;
